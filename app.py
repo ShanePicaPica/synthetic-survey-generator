@@ -23,11 +23,41 @@ st.markdown("上傳真實數據和問卷邏輯 → 設定筆數 → 生成合成
 with st.sidebar:
     st.header("⚙️ 設定")
 
-    openai_key = st.text_input(
-        "OpenAI API Key（用於生成開放題）",
+api_provider = st.selectbox(
+    "AI 服務提供商",
+    ["OpenRouter (免費模型可用)", "OpenAI"],
+    help="OpenRouter 提供免費的 Gemma 模型"
+)
+
+if api_provider == "OpenRouter (免費模型可用)":
+    api_key = st.text_input(
+        "OpenRouter API Key",
         type="password",
-        help="格式: sk-xxxx... 如不提供，開放題將使用隨機抽樣方式"
+        help="前往 https://openrouter.ai/keys 獲取。格式: sk-or-v1-xxxx..."
     )
+    model_options = {
+        "Gemma 3 27B (免費)": "google/gemma-3-27b-it:free",
+        "Gemma 4 27B (免費)": "google/gemma-3-27b-it:free",
+        "Llama 3.1 8B (免費)": "meta-llama/llama-3.1-8b-instruct:free",
+        "Qwen3 8B (免費)": "qwen/qwen3-8b:free"
+    }
+    selected_model = st.selectbox(
+        "選擇模型",
+        list(model_options.keys())
+    )
+    model_id = model_options[selected_model]
+else:
+    api_key = st.text_input(
+        "OpenAI API Key",
+        type="password",
+        help="格式: sk-xxxx..."
+    )
+    model_id = "gpt-4o-mini"
+
+# 將設定存入 session state
+st.session_state['api_key'] = api_key
+st.session_state['api_provider'] = api_provider
+st.session_state['model_id'] = model_id
 
     st.divider()
     st.markdown("### 📖 使用說明")
@@ -161,11 +191,13 @@ if real_data is not None and parsed_xml is not None:
 
         try:
             # 初始化合成器
-            synthesizer = SurveySynthesizer(
-                real_data=real_data,
-                parsed_xml=parsed_xml,
-                openai_api_key=openai_key if openai_key else None
-            )
+synthesizer = SurveySynthesizer(
+    real_data=real_data,
+    parsed_xml=parsed_xml,
+    openai_api_key=st.session_state.get('api_key', ''),
+    api_provider=st.session_state.get('api_provider', 'OpenAI'),
+    model_id=st.session_state.get('model_id', 'gpt-4o-mini')
+)
 
             # 分析真實數據
             update_progress(0.05, "正在分析真實數據分佈...")
