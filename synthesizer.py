@@ -17,8 +17,11 @@ class SurveySynthesizer:
         self.column_profiles = {}
         self.correlation_matrix = None
         self.openai_client = None
-        if openai_api_key:
-            self.openai_client = OpenAI(api_key=openai_api_key)
+if openai_api_key:
+    self.openai_client = OpenAI(
+        api_key=openai_api_key,
+        base_url="https://openrouter.ai/api/v1"
+    )
 
     def analyze_real_data(self):
         """分析真實數據的統計特徵"""
@@ -557,16 +560,20 @@ Rules:
 Generate {current_batch} responses:"""
 
             try:
-                response = self.openai_client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system",
-                         "content": "You are a market research data synthesis assistant."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.8,
-                    max_tokens=2000
-                )
+response = self.openai_client.chat.completions.create(
+    model="google/gemma-3-27b-it:free",
+    messages=[
+        {"role": "system",
+         "content": "You are a market research data synthesis assistant."},
+        {"role": "user", "content": prompt}
+    ],
+    temperature=0.8,
+    max_tokens=2000,
+    extra_headers={
+        "HTTP-Referer": "https://synthetic-survey-generator.streamlit.app",
+        "X-Title": "Synthetic Survey Generator"
+    }
+)
 
                 text = response.choices[0].message.content
                 lines = text.strip().split('\n')
