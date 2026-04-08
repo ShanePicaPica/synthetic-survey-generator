@@ -9,7 +9,6 @@ def parse_decipher_xml(xml_content):
     """
     解析 Decipher XML，返回問卷結構字典
     """
-    # 移除可能導致解析問題的命名空間前綴
     xml_content = re.sub(r'\bss:', 'ss_', xml_content)
     xml_content = re.sub(r'\bqa:', 'qa_', xml_content)
     xml_content = re.sub(r'\bkantar:', 'kantar_', xml_content)
@@ -39,13 +38,11 @@ def parse_decipher_xml(xml_content):
 
 def _extract_questions(element, questions, parent_cond=None):
     """遞歸提取所有問題元素"""
-
-    # 處理 block 層級的條件
     block_cond = None
     if element.tag == 'block':
         block_cond = element.get('cond')
         if block_cond == '0':
-            return  # 跳過隱藏的 block
+            return
 
     current_cond = block_cond or parent_cond
 
@@ -69,7 +66,6 @@ def _parse_question(element, parent_cond=None):
     """解析單個問題元素"""
     label = element.get('label', '')
 
-    # 跳過系統/隱藏問題
     skip_prefixes = (
         'h_', 'hid_', 'Info', 'PIICN', 'chk', 'ln1', 'ln2',
         'changerecord', 'userAgent', 'vpanels', 'vtest',
@@ -91,11 +87,9 @@ def _parse_question(element, parent_cond=None):
     title = ''
     if title_elem is not None:
         title = ''.join(title_elem.itertext()).strip()
-        # 清理 pipe 引用
         title = re.sub(r'\[pipe:\w+\]', '[PIPED]', title)
         title = re.sub(r'\$\{[^}]+\}', '[DYNAMIC]', title)
 
-    # 提取選項
     rows = []
     for row in element.findall('.//row'):
         row_label = row.get('label', '')
@@ -131,19 +125,15 @@ def _parse_question(element, parent_cond=None):
             "text": ''.join(ch.itertext()).strip()
         })
 
-    # 確定問題類型
     q_type = _determine_question_type(tag, element, rows, cols, choices)
 
-    # 合併顯示條件
     effective_cond = cond if cond else parent_cond
 
-    # 驗證規則
     validate_elem = element.find('validate')
     validate_text = ''
     if validate_elem is not None:
         validate_text = ''.join(validate_elem.itertext()).strip()
 
-    # 特殊屬性
     atleast = element.get('atleast', '')
     atmost = element.get('atmost', '')
     optional = element.get('optional', '')
@@ -173,27 +163,27 @@ def _parse_question(element, parent_cond=None):
 def _determine_question_type(tag, element, rows, cols, choices):
     """判斷具體問題類型"""
     if tag == 'radio' and cols:
-        return 'grid_radio'  # 矩陣單選
+        return 'grid_radio'
     elif tag == 'radio':
-        return 'single'  # 單選
+        return 'single'
     elif tag == 'checkbox':
-        return 'multi'  # 多選
+        return 'multi'
     elif tag == 'select' and choices:
-        return 'ranking'  # 排序題
+        return 'ranking'
     elif tag == 'number':
         grouping = element.get('grouping', '')
         if grouping == 'cols' or element.find('.//col') is not None:
-            return 'numeric_grid'  # 數值矩陣（如百分比分配）
+            return 'numeric_grid'
         elif len(rows) > 1:
-            return 'numeric_multi'  # 多行數值
+            return 'numeric_multi'
         else:
-            return 'numeric'  # 單個數值
+            return 'numeric'
     elif tag == 'float':
         return 'numeric'
     elif tag == 'text':
         if len(rows) > 0:
-            return 'open_multi'  # 多行開放題
-        return 'open_end'  # 開放題
+            return 'open_multi'
+        return 'open_end'
     elif tag == 'textarea':
         return 'open_end'
     return 'unknown'
