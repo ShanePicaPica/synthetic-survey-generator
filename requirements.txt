@@ -1,7 +1,7 @@
-streamlit==1.37.0
-pandas==2.2.2
-numpy==1.26.4
-openpyxl==3.1.5
-openai==1.37.0
-scipy==1.14.0
-lxml==5.2.2
+streamlit
+pandas
+numpy
+openpyxl
+openai
+scipy
+lxml
