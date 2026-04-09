@@ -299,10 +299,10 @@ class SurveySynthesizer:
             return generated
 
         elif col_type == "empty":
-            return pd.Series([np.nan] * n)
+            return pd.Series([None] * n, dtype=object)
 
         else:
-            return pd.Series([np.nan] * n)
+            return pd.Series([None] * n, dtype=object)
 
     def _generate_column_with_correlation(self, col, profile, n, existing_df):
         """生成保持相關性的欄位"""
@@ -443,7 +443,7 @@ class SurveySynthesizer:
         except Exception:
             return None
 
-    def _generate_open_text(self, col, profile, n, existing_df):
+        def _generate_open_text(self, col, profile, n, existing_df):
         """生成開放題文字"""
         samples = profile.get("samples", [])
 
@@ -460,7 +460,8 @@ class SurveySynthesizer:
                 except Exception:
                     pass
 
-        result = pd.Series([np.nan] * n)
+        # 關鍵修復：用 object dtype 而不是 float64
+        result = pd.Series([None] * n, dtype=object)
         text_indices = needs_value[needs_value].index.tolist()
 
         if not text_indices or not samples:
@@ -473,18 +474,20 @@ class SurveySynthesizer:
                 )
                 for i, idx in enumerate(text_indices):
                     if i < len(generated_texts):
-                        result[idx] = generated_texts[i]
+                        result.iloc[idx] = str(generated_texts[i])
             except Exception:
                 for idx in text_indices:
-                    result[idx] = np.random.choice(samples)
+                    result.iloc[idx] = str(np.random.choice(samples))
         else:
             for idx in text_indices:
-                result[idx] = np.random.choice(samples)
+                result.iloc[idx] = str(np.random.choice(samples))
 
         null_rate = profile.get("null_rate", 0)
         if null_rate > 0.01:
             null_mask = np.random.random(n) < null_rate
-            result[null_mask & needs_value] = np.nan
+            for idx in range(n):
+                if null_mask[idx] and needs_value.iloc[idx]:
+                    result.iloc[idx] = None
 
         return result
 
