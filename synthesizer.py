@@ -268,8 +268,8 @@ class SurveySynthesizer:
             generated = np.random.choice(values, size=n, p=probs)
             if profile.get("null_rate", 0) > 0.01:
                 null_mask = np.random.random(n) < profile["null_rate"]
-                generated = pd.Series(generated)
-                generated[null_mask] = np.nan
+                generated = pd.Series(generated, dtype=object)
+                generated[null_mask] = None
             return generated
 
         elif col_type == "continuous":
@@ -292,10 +292,10 @@ class SurveySynthesizer:
             return generated
 
         elif col_type == "constant":
-            generated = pd.Series([profile["value"]] * n)
+            generated = pd.Series([profile["value"]] * n, dtype=object)
             if profile.get("null_rate", 0) > 0.01:
                 null_mask = np.random.random(n) < profile["null_rate"]
-                generated[null_mask] = np.nan
+                generated[null_mask] = None
             return generated
 
         elif col_type == "empty":
@@ -337,7 +337,7 @@ class SurveySynthesizer:
             real_ref = pd.to_numeric(self.real_data[best_corr_col], errors="coerce")
             real_target = pd.to_numeric(self.real_data[col], errors="coerce")
 
-            result = pd.Series(index=range(n), dtype=float)
+            result = pd.Series([None] * n, dtype=object)
             ref_unique = ref_values.dropna().unique()
 
             for ref_val in ref_unique:
@@ -356,16 +356,25 @@ class SurveySynthesizer:
                         sampled = np.random.choice(freq.index, size=count, p=probs)
                     else:
                         sampled = np.random.choice(conditional_values.values, size=count)
-                    result[mask] = sampled
+                    mask_indices = mask[mask].index.tolist()
+                    for j, midx in enumerate(mask_indices):
+                        if j < len(sampled):
+                            result.iloc[midx] = sampled[j]
                 else:
                     fill = self._generate_column(col, profile, count)
-                    result[mask] = fill.values[:count]
+                    mask_indices = mask[mask].index.tolist()
+                    for j, midx in enumerate(mask_indices):
+                        if j < len(fill):
+                            result.iloc[midx] = fill.iloc[j]
 
             remaining_null = result.isna()
             if remaining_null.any():
                 n_remaining = int(remaining_null.sum())
                 fill_values = self._generate_column(col, profile, n_remaining)
-                result[remaining_null] = fill_values.values[:n_remaining]
+                null_indices = remaining_null[remaining_null].index.tolist()
+                for j, nidx in enumerate(null_indices):
+                    if j < len(fill_values):
+                        result.iloc[nidx] = fill_values.iloc[j]
 
             return result
 
@@ -391,7 +400,7 @@ class SurveySynthesizer:
                 skip_mask = self._evaluate_condition(cond, df)
                 if skip_mask is not None:
                     for c in q_columns:
-                        df.loc[~skip_mask, c] = np.nan
+                        df.loc[~skip_mask, c] = None
             except Exception:
                 continue
 
@@ -418,16 +427,16 @@ class SurveySynthesizer:
             def replace_not(m):
                 var_name = m.group(1)
                 val = m.group(2)
-                return '(df.get("' + var_name + '", pd.Series([np.nan]*len(df))) != ' + val + ')'
+                return '(df.get("' + var_name + '", pd.Series([None]*len(df), dtype=object)) != ' + val + ')'
 
             def replace_pos(m):
                 var_name = m.group(1)
                 val = m.group(2)
-                return '(pd.to_numeric(df.get("' + var_name + '", pd.Series([np.nan]*len(df))), errors="coerce") == ' + val + ')'
+                return '(pd.to_numeric(df.get("' + var_name + '", pd.Series([None]*len(df), dtype=object)), errors="coerce") == ' + val + ')'
 
             def replace_any(m):
                 var_name = m.group(1)
-                return '(df.get("' + var_name + '", pd.Series([np.nan]*len(df))).notna())'
+                return '(df.get("' + var_name + '", pd.Series([None]*len(df), dtype=object)).notna())'
 
             eval_cond = re.sub(r"not\s+(\w+)\.r(\d+)", replace_not, eval_cond)
             eval_cond = re.sub(r"(\w+)\.r(\d+)", replace_pos, eval_cond)
@@ -443,7 +452,7 @@ class SurveySynthesizer:
         except Exception:
             return None
 
-        def _generate_open_text(self, col, profile, n, existing_df):
+    def _generate_open_text(self, col, profile, n, existing_df):
         """生成開放題文字"""
         samples = profile.get("samples", [])
 
@@ -460,7 +469,6 @@ class SurveySynthesizer:
                 except Exception:
                     pass
 
-        # 關鍵修復：用 object dtype 而不是 float64
         result = pd.Series([None] * n, dtype=object)
         text_indices = needs_value[needs_value].index.tolist()
 
@@ -499,7 +507,7 @@ class SurveySynthesizer:
             q_title = self.questions[q_label].get("title", "")
 
         sample_texts = samples[:10]
-        sample_str = "\n".join(["- " + s for s in sample_texts])
+        sample_str = "\n".join(["- " + str(s) for s in sample_texts])
 
         batch_size = min(n_needed, 20)
         all_texts = []
@@ -558,30 +566,36 @@ class SurveySynthesizer:
 
             except Exception:
                 for _ in range(current_batch):
-                    all_texts.append(np.random.choice(samples))
+                    all_texts.append(str(np.random.choice(samples)))
 
         return all_texts[:n_needed]
 
     def _apply_validation_rules(self, df):
         """應用驗證規則"""
         if "S17" in df.columns and "S16" in df.columns:
-            s17 = pd.to_numeric(df["S17"], errors="coerce")
-            s16 = pd.to_numeric(df["S16"], errors="coerce")
-            violation = (s17 > s16) & s17.notna() & s16.notna()
-            if violation.any():
-                df.loc[violation, "S17"] = df.loc[violation, "S16"]
+            try:
+                s17 = pd.to_numeric(df["S17"], errors="coerce")
+                s16 = pd.to_numeric(df["S16"], errors="coerce")
+                violation = (s17 > s16) & s17.notna() & s16.notna()
+                if violation.any():
+                    df.loc[violation, "S17"] = df.loc[violation, "S16"]
+            except Exception:
+                pass
 
         s21_cols = [c for c in df.columns if re.match(r"S21.*c1", c)]
         if s21_cols:
             for idx in df.index:
-                vals = pd.to_numeric(df.loc[idx, s21_cols], errors="coerce").dropna()
-                if len(vals) > 0:
-                    total = vals.sum()
-                    if total != 0 and total != 100:
-                        scale_factor = 100.0 / total
-                        for c in s21_cols:
-                            if pd.notna(df.loc[idx, c]):
-                                df.loc[idx, c] = round(float(df.loc[idx, c]) * scale_factor)
+                try:
+                    vals = pd.to_numeric(df.loc[idx, s21_cols], errors="coerce").dropna()
+                    if len(vals) > 0:
+                        total = vals.sum()
+                        if total != 0 and total != 100:
+                            scale_factor = 100.0 / total
+                            for c in s21_cols:
+                                if pd.notna(df.loc[idx, c]):
+                                    df.loc[idx, c] = round(float(df.loc[idx, c]) * scale_factor)
+                except Exception:
+                    pass
 
         s11_cols = [c for c in df.columns if c.startswith("S11")]
         if len(s11_cols) >= 2:
@@ -589,9 +603,12 @@ class SurveySynthesizer:
             r2_col = [c for c in s11_cols if "r2" in c]
             if r1_col and r2_col:
                 for idx in df.index:
-                    v1 = pd.to_numeric(df.loc[idx, r1_col[0]], errors="coerce")
-                    if pd.notna(v1):
-                        df.loc[idx, r2_col[0]] = 7 - v1
+                    try:
+                        v1 = pd.to_numeric(df.loc[idx, r1_col[0]], errors="coerce")
+                        if pd.notna(v1):
+                            df.loc[idx, r2_col[0]] = 7 - v1
+                    except Exception:
+                        pass
 
         return df
 
