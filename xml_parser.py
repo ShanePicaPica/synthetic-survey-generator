@@ -36,15 +36,21 @@ def parse_decipher_xml(xml_content):
     }
 
 
+def _combine_conditions(parent_cond, child_cond):
+    """合併父層與子層條件。"""
+    if parent_cond and child_cond:
+        return f"({parent_cond}) and ({child_cond})"
+    return parent_cond or child_cond
+
+
 def _extract_questions(element, questions, parent_cond=None):
     """遞歸提取所有問題元素"""
-    block_cond = None
-    if element.tag == 'block':
-        block_cond = element.get('cond')
-        if block_cond == '0':
+    current_cond = parent_cond
+    if element.tag in ('block', 'loop'):
+        element_cond = element.get('cond', '')
+        if element_cond == '0':
             return
-
-    current_cond = block_cond or parent_cond
+        current_cond = _combine_conditions(parent_cond, element_cond)
 
     for child in element:
         tag = child.tag
@@ -55,11 +61,7 @@ def _extract_questions(element, questions, parent_cond=None):
                 questions.append(q)
 
         elif tag in ('block', 'loop'):
-            loop_cond = child.get('cond')
-            if loop_cond == '0':
-                continue
-            effective_cond = loop_cond if loop_cond else current_cond
-            _extract_questions(child, questions, parent_cond=effective_cond)
+            _extract_questions(child, questions, parent_cond=current_cond)
 
 
 def _parse_question(element, parent_cond=None):
@@ -127,7 +129,7 @@ def _parse_question(element, parent_cond=None):
 
     q_type = _determine_question_type(tag, element, rows, cols, choices)
 
-    effective_cond = cond if cond else parent_cond
+    effective_cond = _combine_conditions(parent_cond, cond)
 
     validate_elem = element.find('validate')
     validate_text = ''
