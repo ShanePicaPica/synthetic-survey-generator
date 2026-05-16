@@ -32,46 +32,33 @@ if "generation_done" not in st.session_state:
 with st.sidebar:
     st.header("Settings")
 
-    api_provider = st.selectbox(
-        "AI Provider",
-        ["OpenRouter (Free models)", "OpenAI"]
+    api_provider = "OpenRouter"
+    api_key = st.text_input(
+        "OpenRouter API Key",
+        type="password",
+        help="Get from https://openrouter.ai/keys"
     )
-
-    if api_provider == "OpenRouter (Free models)":
-        api_key = st.text_input(
-            "OpenRouter API Key",
-            type="password",
-            help="Get from https://openrouter.ai/keys"
-        )
-        model_options = {
-            "Gemma 3 27B (Free)": "google/gemma-3-27b-it:free",
-            "Llama 3.1 8B (Free)": "meta-llama/llama-3.1-8b-instruct:free",
-            "Qwen3 8B (Free)": "qwen/qwen3-8b:free",
-            "Mistral 7B (Free)": "mistralai/mistral-7b-instruct:free",
-            "DeepSeek V3 (Free)": "deepseek/deepseek-chat-v3-0324:free"
-        }
-        selected_model = st.selectbox(
-            "Model",
-            list(model_options.keys())
-        )
-        model_id = model_options[selected_model]
-        st.info("Model: " + model_id)
-    else:
-        api_key = st.text_input(
-            "OpenAI API Key",
-            type="password",
-            help="Format: sk-xxxx..."
-        )
-        model_options_openai = {
-            "GPT-4o Mini": "gpt-4o-mini",
-            "GPT-4o": "gpt-4o",
-            "GPT-3.5 Turbo": "gpt-3.5-turbo"
-        }
-        selected_model = st.selectbox(
-            "Model",
-            list(model_options_openai.keys())
-        )
-        model_id = model_options_openai[selected_model]
+    model_options = {
+        "Auto Free Router": "openrouter/free",
+        "NVIDIA Nemotron 3 Super 120B A12B (Free)": (
+            "nvidia/nemotron-3-super-120b-a12b:free"
+        ),
+        "OpenAI GPT-OSS 120B (Free)": "openai/gpt-oss-120b:free",
+        "Arcee Trinity Large Preview (Free)": (
+            "arcee-ai/trinity-large-preview:free"
+        ),
+        "NVIDIA Nemotron Nano 9B V2 (Free)": (
+            "nvidia/nemotron-nano-9b-v2:free"
+        ),
+        "Gemma 3 27B (Free)": "google/gemma-3-27b-it:free",
+        "DeepSeek V3 (Free)": "deepseek/deepseek-chat-v3-0324:free"
+    }
+    selected_model = st.selectbox(
+        "OpenRouter Free Model",
+        list(model_options.keys())
+    )
+    model_id = model_options[selected_model]
+    st.info("Model: " + model_id)
 
     if api_key:
         st.success("API Key set")
@@ -90,7 +77,6 @@ with st.sidebar:
     )
     st.divider()
     st.markdown("[OpenRouter Keys](https://openrouter.ai/keys)")
-    st.markdown("[OpenAI Keys](https://platform.openai.com/api-keys)")
 
 # ===== Main =====
 col1, col2 = st.columns(2)
